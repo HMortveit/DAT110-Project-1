@@ -1,148 +1,103 @@
 package no.hvl.dat110.rpc;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import no.hvl.dat110.TODO;
 
 public class RPCUtils {
-	
+
+
 	public static byte[] encapsulate(byte rpcid, byte[] payload) {
-		
-		byte[] rpcmsg = null;
-		
-		// TODO - START
-		
-		// Encapsulate the rpcid and payload in a byte array according to the RPC message syntax / format
-		
-		if (true)
-			throw new UnsupportedOperationException(TODO.method());
-		
-		// TODO - END
-		
+
+		if (payload == null) {
+			payload = new byte[0];
+		}
+
+		// Max Message payload is 127, rpcmsg uses 1 byte for rpcid => max payload is 126
+		if (payload.length > 126) {
+			throw new IllegalArgumentException("RPC payload too large: " + payload.length + " (max 126 bytes)");
+		}
+
+		byte[] rpcmsg = new byte[1 + payload.length];
+		rpcmsg[0] = rpcid;
+		System.arraycopy(payload, 0, rpcmsg, 1, payload.length);
+
 		return rpcmsg;
 	}
-	
+
 	public static byte[] decapsulate(byte[] rpcmsg) {
-		
-		byte[] payload = null;
-		
-		// TODO - START
-		
-		// Decapsulate the rpcid and payload in a byte array according to the RPC message syntax
-		
-		if (true)
-			throw new UnsupportedOperationException(TODO.method());
-		
-		// TODO - END
-		
-		return payload;
-		
+
+		if (rpcmsg == null || rpcmsg.length == 0) {
+			throw new IllegalArgumentException("rpcmsg is null or empty");
+		}
+
+		// payload is everything after the rpcid byte
+		return Arrays.copyOfRange(rpcmsg, 1, rpcmsg.length);
 	}
 
-	// convert String to byte array
+	// convert String to byte array (UTF-8)
 	public static byte[] marshallString(String str) {
-		
-		byte[] encoded = null;
-		
-		// TODO - START 
-		
-		if (true)
-			throw new UnsupportedOperationException(TODO.method());
-		
-		// TODO - END
-		
-		return encoded;
+
+		if (str == null) {
+			str = "";
+		}
+
+		return str.getBytes(StandardCharsets.UTF_8);
 	}
 
-	// convert byte array to a String
+	// convert byte array to a String (UTF-8)
 	public static String unmarshallString(byte[] data) {
-		
-		String decoded = null; 
-		
-		// TODO - START 
-		
-		if (true)
-			throw new UnsupportedOperationException(TODO.method());
-		
-		// TODO - END
-		
-		return decoded;
+
+		if (data == null) {
+			return "";
+		}
+
+		return new String(data, StandardCharsets.UTF_8);
 	}
-	
+
+	// void -> empty payload
 	public static byte[] marshallVoid() {
-		
-		byte[] encoded = null;
-		
-		// TODO - START 
-		
-		if (true)
-			throw new UnsupportedOperationException(TODO.method());
-				
-		// TODO - END
-		
-		return encoded;
-		
+		return new byte[0];
 	}
-	
+
+	// void <- empty payload
 	public static void unmarshallVoid(byte[] data) {
-		
-		// TODO
-		
-		if (true)
-			throw new UnsupportedOperationException(TODO.method());
-		
+		if (data != null && data.length != 0) {
+			throw new IllegalArgumentException("Expected void payload (empty), got length=" + data.length);
+		}
 	}
 
 	// convert boolean to a byte array representation
 	public static byte[] marshallBoolean(boolean b) {
-		
+
 		byte[] encoded = new byte[1];
-				
-		if (b) {
-			encoded[0] = 1;
-		} else
-		{
-			encoded[0] = 0;
-		}
-		
+		encoded[0] = (byte) (b ? 1 : 0);
 		return encoded;
 	}
 
 	// convert byte array to a boolean representation
 	public static boolean unmarshallBoolean(byte[] data) {
-		
+
+		if (data == null || data.length < 1) {
+			throw new IllegalArgumentException("Expected at least 1 byte for boolean");
+		}
+
 		return (data[0] > 0);
-		
 	}
 
-	// integer to byte array representation
+	// integer to byte array representation (4 bytes, big-endian)
 	public static byte[] marshallInteger(int x) {
-		
-		byte[] encoded = null;
-		
-		// TODO - START 
-		
-		if (true)
-			throw new UnsupportedOperationException(TODO.method());
-		
-		// TODO - END
-		
-		return encoded;
+
+		return ByteBuffer.allocate(Integer.BYTES).putInt(x).array();
 	}
-	
-	// byte array representation to integer
+
+	// byte array representation to integer (expects exactly 4 bytes)
 	public static int unmarshallInteger(byte[] data) {
-		
-		int decoded = 0;
-		
-		// TODO - START 
-		
-		if (true)
-			throw new UnsupportedOperationException(TODO.method());
-		
-		// TODO - END
-		
-		return decoded;
-		
+
+		if (data == null || data.length != Integer.BYTES) {
+			throw new IllegalArgumentException("Expected 4 bytes for int, got " + (data == null ? "null" : data.length));
+		}
+
+		return ByteBuffer.wrap(data).getInt();
 	}
 }
