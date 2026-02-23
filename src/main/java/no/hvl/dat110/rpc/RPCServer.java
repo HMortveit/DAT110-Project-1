@@ -10,81 +10,72 @@ public class RPCServer {
 
 	private MessagingServer msgserver;
 	private MessageConnection connection;
-
-	// hashmap to register RPC methods which are required to extend RPCRemoteImpl
-	// the key in the hashmap is the RPC identifier of the method
 	private HashMap<Byte, RPCRemoteImpl> services;
 
 	public RPCServer(int port) {
-
 		this.msgserver = new MessagingServer(port);
-		this.services = new HashMap<Byte, RPCRemoteImpl>();
-
+		this.services = new HashMap<>();
 	}
 
 	public void run() {
 
-		// the stop RPC method is built into the server
-		RPCRemoteImpl rpcstop = new RPCServerStopImpl(RPCCommon.RPIDSTOP, this);
+		try {
 
-		// IMPORTANT: register stop service so it can be called
-		register(RPCCommon.RPIDSTOP, rpcstop);
+			RPCRemoteImpl rpcstop = new RPCServerStopImpl(RPCCommon.RPIDSTOP, this);
+			register(RPCCommon.RPIDSTOP, rpcstop);
 
-		System.out.println("RPC SERVER RUN - Services: " + services.size());
+			System.out.println("RPC SERVER RUN - Services: " + services.size());
 
-		connection = msgserver.accept();
+			connection = msgserver.accept();
 
-		System.out.println("RPC SERVER ACCEPTED");
-
-		boolean stop = false;
-
-		while (!stop) {
-
-			byte rpcid = 0;
-			Message requestmsg, replymsg;
-
-			// receive a Message containing an RPC request
-			requestmsg = connection.receive();
-			if (requestmsg == null) {
-				continue; // could also break; depends on how you want to handle IO errors
+			if (connection == null) {
+				System.out.println("RPCServer.run - connection is null (accept failed)");
+				return;
 			}
 
-			byte[] rpcreq = requestmsg.getData();
-			if (rpcreq == null || rpcreq.length == 0) {
-				continue;
+			System.out.println("RPC SERVER ACCEPTED");
+
+			boolean stop = false;
+
+			while (!stop) {
+
+				Message requestmsg = connection.receive();
+
+				if (requestmsg == null) {
+					break;
+				}
+
+				byte[] rpcreq = requestmsg.getData();
+				if (rpcreq == null || rpcreq.length == 0) {
+					continue;
+				}
+
+				byte rpcid = rpcreq[0];
+				byte[] param = RPCUtils.decapsulate(rpcreq);
+
+				RPCRemoteImpl method = services.get(rpcid);
+
+				if (method == null) {
+					System.out.println("RPCServer.run - no method registered for rpcid=" + rpcid);
+					continue;
+				}
+
+				byte[] returnval = method.invoke(param);
+				byte[] rpcreply = RPCUtils.encapsulate(rpcid, returnval);
+
+				Message replymsg = new Message(rpcreply);
+				connection.send(replymsg);
+
+				if (rpcid == RPCCommon.RPIDSTOP) {
+					stop = true;
+				}
 			}
 
-			// extract the identifier for the RPC method to be invoked from the RPC request
-			rpcid = rpcreq[0];
-
-			// extract the method's parameter by decapsulating using the RPCUtils
-			byte[] param = RPCUtils.decapsulate(rpcreq);
-
-			// lookup the method to be invoked
-			RPCRemoteImpl method = services.get(rpcid);
-			if (method == null) {
-				throw new IllegalStateException("No RPC method registered for rpcid=" + rpcid);
-			}
-
-			// invoke the method and pass the param
-			byte[] returnval = method.invoke(param);
-
-			// encapsulate return value
-			byte[] rpcreply = RPCUtils.encapsulate(rpcid, returnval);
-
-			// send back the message containing the RPC reply
-			replymsg = new Message(rpcreply);
-			connection.send(replymsg);
-
-			// stop the server if it was stop method that was called
-			if (rpcid == RPCCommon.RPIDSTOP) {
-				stop = true;
-			}
+		} finally {
+			stop();
 		}
-
 	}
 
-	// used by server side method implementations to register themselves in the RPC server
 	public void register(byte rpcid, RPCRemoteImpl impl) {
 		services.put(rpcid, impl);
 	}
@@ -93,15 +84,12 @@ public class RPCServer {
 
 		if (connection != null) {
 			connection.close();
-		} else {
-			System.out.println("RPCServer.stop - connection was null");
+			connection = null;
 		}
 
 		if (msgserver != null) {
 			msgserver.stop();
-		} else {
-			System.out.println("RPCServer.stop - msgserver was null");
+			msgserver = null;
 		}
-
 	}
 }
